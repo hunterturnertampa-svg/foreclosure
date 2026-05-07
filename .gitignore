@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+data/
+*.sqlite
+*.sqlite-journal
+/tmp/
+node_modules/
+.playwright/
