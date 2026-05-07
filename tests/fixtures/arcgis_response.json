@@ -1,0 +1,13 @@
+{
+  "features": [
+    {
+      "attributes": {
+        "PIN": "123-45-67-001",
+        "OWNER": "SMITH JOHN A & SMITH MARY B",
+        "SITE_ADDRESS": "123 MAIN ST",
+        "SITE_CITY": "MONCKS CORNER",
+        "SITE_ZIP": "29461"
+      }
+    }
+  ]
+}

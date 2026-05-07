@@ -58,3 +58,56 @@ def test_parse_owners_all_entity_returns_empty():
 def test_parse_owners_empty_string():
     assert parse_owners("") == []
     assert parse_owners(None) == []
+
+
+import json
+from pathlib import Path
+import respx
+import httpx
+import pytest
+from foreclosure_bot.gis_lookup import GisClient, GisFieldMap
+
+
+FIXTURE = Path(__file__).parent / "fixtures" / "arcgis_response.json"
+
+
+def fields():
+    return GisFieldMap(pin="PIN", owner="OWNER", address="SITE_ADDRESS",
+                      city="SITE_CITY", zip="SITE_ZIP")
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_query_returns_parcel():
+    respx.get("https://gis.example.com/query").mock(
+        return_value=httpx.Response(200, content=FIXTURE.read_bytes())
+    )
+    c = GisClient(query_url="https://gis.example.com/query", fields=fields())
+    p = await c.query("123-45-67-001")
+    assert p is not None
+    assert p.owner_raw == "SMITH JOHN A & SMITH MARY B"
+    assert p.site_street == "123 MAIN ST"
+    assert p.site_city == "MONCKS CORNER"
+    assert p.site_zip == "29461"
+    assert p.site_state == "SC"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_query_returns_none_when_no_features():
+    respx.get("https://gis.example.com/query").mock(
+        return_value=httpx.Response(200, json={"features": []})
+    )
+    c = GisClient(query_url="https://gis.example.com/query", fields=fields())
+    assert await c.query("nope") is None
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_query_uses_pin_field_in_where_clause():
+    route = respx.get("https://gis.example.com/query").mock(
+        return_value=httpx.Response(200, json={"features": []})
+    )
+    c = GisClient(query_url="https://gis.example.com/query", fields=fields())
+    await c.query("ABC")
+    assert "PIN='ABC'" in route.calls.last.request.url.params["where"]
