@@ -1,4 +1,4 @@
-from foreclosure_bot.gis_lookup import parse_owners, is_entity, OwnerName
+from foreclosure_bot.gis_lookup import OwnerName, is_entity, parse_owners
 
 
 def test_is_entity_detects_llc():
@@ -60,13 +60,13 @@ def test_parse_owners_empty_string():
     assert parse_owners(None) == []
 
 
-import json
 from pathlib import Path
-import respx
+
 import httpx
 import pytest
-from foreclosure_bot.gis_lookup import GisClient, GisFieldMap
+import respx
 
+from foreclosure_bot.gis_lookup import GisClient, GisFieldMap
 
 FIXTURE = Path(__file__).parent / "fixtures" / "arcgis_response.json"
 

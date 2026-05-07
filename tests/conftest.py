@@ -1,4 +1,5 @@
 import pytest
+
 from foreclosure_bot.dedupe import Store
 
 

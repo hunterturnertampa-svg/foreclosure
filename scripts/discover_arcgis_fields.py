@@ -1,5 +1,6 @@
 """Hit the ArcGIS rest directory and print parcel-layer URLs + field names."""
 import sys
+
 import httpx
 
 ROOT = "https://gis.berkeleycountysc.gov/arcgis/rest/services?f=json"

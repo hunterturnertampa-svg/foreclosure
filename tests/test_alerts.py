@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+
 from foreclosure_bot.alerts import AlertSender
 
 

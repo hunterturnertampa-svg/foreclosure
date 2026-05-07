@@ -1,6 +1,7 @@
 import asyncio
 import sys
 import traceback
+
 from .alerts import AlertSender
 from .config import Settings
 from .court_scraper import CourtScraper

@@ -1,10 +1,10 @@
 from datetime import date
 from pathlib import Path
-from foreclosure_bot.court_scraper import (
-    parse_search_results,
-    parse_case_detail,
-)
 
+from foreclosure_bot.court_scraper import (
+    parse_case_detail,
+    parse_search_results,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

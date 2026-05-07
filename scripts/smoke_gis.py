@@ -1,6 +1,7 @@
 """Look up a parcel by tax map number against the live ArcGIS service."""
 import asyncio
 import sys
+
 from foreclosure_bot.config import Settings
 from foreclosure_bot.gis_lookup import GisClient, GisFieldMap
 

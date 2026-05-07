@@ -1,8 +1,9 @@
-import respx
 import httpx
 import pytest
-from foreclosure_bot.tracerfy import TracerfyClient
+import respx
+
 from foreclosure_bot.models import Person
+from foreclosure_bot.tracerfy import TracerfyClient
 
 
 @pytest.mark.asyncio

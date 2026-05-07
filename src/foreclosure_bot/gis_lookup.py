@@ -1,8 +1,9 @@
 import re
 from dataclasses import dataclass
-import httpx
-from .models import Parcel
 
+import httpx
+
+from .models import Parcel
 
 _ENTITY_TOKENS = {
     "LLC", "L.L.C.", "L.L.C", "INC", "INC.", "INCORPORATED",

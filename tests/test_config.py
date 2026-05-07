@@ -1,4 +1,5 @@
 import pytest
+
 from foreclosure_bot.config import Settings
 
 
@@ -24,5 +25,5 @@ def test_settings_missing_required_raises(monkeypatch):
     for var in ["TRACERFY_API_KEY", "SHEETS_WEBHOOK_URL", "SHEETS_WEBHOOK_TOKEN",
                 "ALERT_EMAIL_TO", "SMTP_USER", "SMTP_PASS", "ARCGIS_PARCEL_QUERY_URL"]:
         monkeypatch.delenv(var, raising=False)
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         Settings()

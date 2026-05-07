@@ -1,4 +1,5 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
+
 from .dedupe import Store
 from .gis_lookup import GisClient, parse_owners
 from .models import Case, Person, SheetRow
@@ -68,7 +69,7 @@ class Pipeline:
             if remaining == 0:
                 self.store.set_state(
                     "backfill_completed_at",
-                    datetime.now(timezone.utc).isoformat(),
+                    datetime.now(UTC).isoformat(),
                 )
 
     async def _process_case(self, case: Case, is_backfill: bool) -> None:

@@ -16,6 +16,7 @@ def test_sheet_rows_unique_constraint(store):
         "INSERT INTO sheet_rows(case_number, person_key) VALUES('A','p1')"
     )
     import sqlite3
+
     import pytest
     with pytest.raises(sqlite3.IntegrityError):
         store.conn.execute(
@@ -24,6 +25,7 @@ def test_sheet_rows_unique_constraint(store):
 
 
 from datetime import date
+
 from foreclosure_bot.models import Case
 
 
@@ -79,7 +81,6 @@ def test_load_incomplete_cases_returns_new_and_gis_done(store):
     assert nums == {"A", "B", "E"}
 
 
-import json
 from foreclosure_bot.models import Parcel
 
 

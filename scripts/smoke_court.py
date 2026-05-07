@@ -1,8 +1,9 @@
 """Run the court scraper against the live site for the last 7 days."""
 import asyncio
 from datetime import date, timedelta
-from foreclosure_bot.court_scraper import CourtScraper
+
 from foreclosure_bot.config import Settings
+from foreclosure_bot.court_scraper import CourtScraper
 
 
 async def main():

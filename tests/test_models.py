@@ -1,4 +1,5 @@
 from datetime import date
+
 from foreclosure_bot.models import Case, Parcel, Person, SheetRow
 
 

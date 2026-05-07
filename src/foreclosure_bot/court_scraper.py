@@ -1,10 +1,12 @@
-import re
 import asyncio
 import random
-from datetime import date, datetime
+import re
 from collections.abc import AsyncIterator
+from datetime import date, datetime
+
 from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright, Page
+from playwright.async_api import Page, async_playwright
+
 from .models import Case
 
 

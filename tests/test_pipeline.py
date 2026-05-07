@@ -1,8 +1,10 @@
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from foreclosure_bot.pipeline import Pipeline
+
 from foreclosure_bot.models import Case, Parcel, SheetRow
+from foreclosure_bot.pipeline import Pipeline
 
 
 @pytest.mark.asyncio
