@@ -61,6 +61,12 @@ class GisFieldMap:
     address: str
     city: str
     zip: str
+    address_fallback: str | None = None
+
+
+def normalize_tms(raw: str) -> str:
+    """Strip dashes, spaces, and dots — Berkeley's O_TMS field stores digits only."""
+    return re.sub(r"[^A-Za-z0-9]", "", raw or "")
 
 
 class GisClient:
@@ -70,13 +76,16 @@ class GisClient:
         self.timeout = timeout
 
     async def query(self, tax_map_number: str) -> Parcel | None:
-        safe_pin = tax_map_number.replace("'", "''")
+        normalized = normalize_tms(tax_map_number)
+        safe_pin = normalized.replace("'", "''")
+        out_fields = [self.fields.owner, self.fields.address,
+                      self.fields.city, self.fields.zip]
+        if self.fields.address_fallback:
+            out_fields.append(self.fields.address_fallback)
         params = {
             "where": f"{self.fields.pin}='{safe_pin}'",
-            "outFields": ",".join([
-                self.fields.owner, self.fields.address,
-                self.fields.city, self.fields.zip,
-            ]),
+            "outFields": ",".join(out_fields),
+            "returnGeometry": "false",
             "f": "json",
         }
         async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -87,11 +96,16 @@ class GisClient:
         if not features:
             return None
         attrs = features[0].get("attributes", {})
+        street = attrs.get(self.fields.address) or ""
+        if not street.strip() and self.fields.address_fallback:
+            street = (attrs.get(self.fields.address_fallback) or "").strip()
+        zip_raw = str(attrs.get(self.fields.zip) or "")
+        zip5 = zip_raw.split("-")[0].strip()
         return Parcel(
             tax_map_number=tax_map_number,
             owner_raw=attrs.get(self.fields.owner),
-            site_street=attrs.get(self.fields.address),
+            site_street=(street or "").strip() or None,
             site_city=attrs.get(self.fields.city),
             site_state="SC",
-            site_zip=str(attrs.get(self.fields.zip) or "") or None,
+            site_zip=zip5 or None,
         )

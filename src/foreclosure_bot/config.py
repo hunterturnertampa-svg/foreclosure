@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     arcgis_parcel_pin_field: str = "PIN"
     arcgis_parcel_owner_field: str = "OWNER"
     arcgis_parcel_address_field: str = "SITE_ADDRESS"
+    arcgis_parcel_address_fallback_field: str | None = None
     arcgis_parcel_city_field: str = "SITE_CITY"
     arcgis_parcel_zip_field: str = "SITE_ZIP"
 

@@ -30,6 +30,7 @@ async def _run() -> int:
                 pin=settings.arcgis_parcel_pin_field,
                 owner=settings.arcgis_parcel_owner_field,
                 address=settings.arcgis_parcel_address_field,
+                address_fallback=settings.arcgis_parcel_address_fallback_field,
                 city=settings.arcgis_parcel_city_field,
                 zip=settings.arcgis_parcel_zip_field,
             ),
