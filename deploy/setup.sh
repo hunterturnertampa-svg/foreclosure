@@ -6,7 +6,7 @@ set -euo pipefail
 apt-get update
 apt-get install -y python3.12 python3.12-venv git curl ca-certificates \
     libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxkbcommon0 libxcomposite1 \
-    libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
+    libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2t64 \
     sqlite3
 
 id -u botuser >/dev/null 2>&1 || useradd -m -s /bin/bash botuser
