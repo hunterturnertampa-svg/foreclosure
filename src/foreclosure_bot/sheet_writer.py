@@ -13,7 +13,7 @@ class SheetWriter:
         payload = row.model_dump(mode="json")
         payload["token"] = self.token
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
                 resp = await client.post(self.url, json=payload)
                 if resp.status_code != 200:
                     return False
