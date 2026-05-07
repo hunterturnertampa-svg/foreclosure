@@ -5,7 +5,7 @@ from .models import Person
 
 
 class TracerfyClient:
-    BASE = "https://api.tracerfy.com/v1"
+    URL = "https://tracerfy.com/v1/api/trace/lookup/"
 
     def __init__(self, api_key: str, max_retries: int = 3, timeout: float = 30.0):
         self.api_key = api_key
@@ -24,25 +24,42 @@ class TracerfyClient:
         async def _call() -> list[str]:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 resp = await client.post(
-                    f"{self.BASE}/skip-trace",
+                    self.URL,
                     headers={"Authorization": f"Bearer {self.api_key}"},
                     json={
                         "first_name": person.first,
-                        "middle_name": person.middle,
                         "last_name": person.last,
-                        "street": street,
-                        "city": city,
-                        "state": state,
-                        "zip": zip_,
+                        "address": street or "",
+                        "city": city or "",
+                        "state": state or "SC",
+                        "zip": zip_ or "",
+                        "find_owner": False,
                     },
                 )
                 resp.raise_for_status()
                 data = resp.json()
-            return self._parse_response(data)
+            return self._parse_response(data, person)
         return await _call()
 
     @staticmethod
-    def _parse_response(data: dict) -> list[str]:
-        phones = data.get("phones", [])
-        mobiles = [p["number"] for p in phones if p.get("type") == "mobile"]
+    def _parse_response(data: dict, target: Person) -> list[str]:
+        if not data.get("hit"):
+            return []
+        persons = data.get("persons") or []
+        # Match the person Tracerfy returned to the one we asked about (by last/first name).
+        # If multiple persons returned, prefer one whose last+first matches; otherwise use first.
+        chosen = None
+        target_last = target.last.lower().strip()
+        target_first = target.first.lower().strip()
+        for p in persons:
+            if (p.get("last_name", "").lower().strip() == target_last and
+                p.get("first_name", "").lower().strip() == target_first):
+                chosen = p
+                break
+        if chosen is None and persons:
+            chosen = persons[0]
+        if chosen is None:
+            return []
+        phones = chosen.get("phones") or []
+        mobiles = [str(p["number"]) for p in phones if p.get("type") == "Mobile"]
         return mobiles[:3]
