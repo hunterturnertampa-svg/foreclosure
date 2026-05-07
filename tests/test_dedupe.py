@@ -77,3 +77,65 @@ def test_load_incomplete_cases_returns_new_and_gis_done(store):
     )
     nums = {c.case_number for c in store.load_incomplete_cases()}
     assert nums == {"A", "B", "E"}
+
+
+import json
+from foreclosure_bot.models import Parcel
+
+
+def test_parcel_upsert_and_get(store):
+    p = Parcel(tax_map_number="T1", owner_raw="X", site_street="1 St",
+               site_city="C", site_state="SC", site_zip="29461")
+    store.upsert_parcel(p)
+    got = store.get_parcel("T1")
+    assert got.owner_raw == "X"
+    assert got.site_zip == "29461"
+
+
+def test_get_parcel_missing_returns_none(store):
+    assert store.get_parcel("nope") is None
+
+
+def test_skip_trace_cache(store):
+    store.cache_skip_trace(
+        person_key="smith|john||29461",
+        owner_name="John Smith",
+        street="1 St", city="C", state="SC", zip_="29461",
+        mobiles=["8435551111"],
+    )
+    cached = store.get_skip_trace("smith|john||29461")
+    assert cached == ["8435551111"]
+    assert store.get_skip_trace("nope") is None
+
+
+def test_skip_trace_cache_idempotent(store):
+    for _ in range(2):
+        store.cache_skip_trace(
+            person_key="k", owner_name="n", street=None, city=None,
+            state=None, zip_=None, mobiles=[],
+        )
+    count = store.conn.execute("SELECT COUNT(*) FROM skip_traces").fetchone()[0]
+    assert count == 1
+
+
+def test_record_sheet_row_first_call_returns_true(store):
+    assert store.record_sheet_row("CASE1", "p1") is True
+
+
+def test_record_sheet_row_second_call_returns_false(store):
+    store.record_sheet_row("CASE1", "p1")
+    assert store.record_sheet_row("CASE1", "p1") is False
+
+
+def test_log_error(store):
+    store.log_error(stage="court", case_number="X", message="boom", traceback="tb")
+    row = store.conn.execute(
+        "SELECT stage, case_number, message FROM errors"
+    ).fetchone()
+    assert row == ("court", "X", "boom")
+
+
+def test_state_set_and_get(store):
+    store.set_state("backfill_completed_at", "2024-05-01T00:00:00Z")
+    assert store.get_state("backfill_completed_at") == "2024-05-01T00:00:00Z"
+    assert store.get_state("missing") is None

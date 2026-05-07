@@ -1,6 +1,7 @@
+import json
 import sqlite3
 from pathlib import Path
-from .models import Case
+from .models import Case, Parcel
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS cases (
@@ -106,3 +107,84 @@ class Store:
             )
             for r in rows
         ]
+
+    def upsert_parcel(self, parcel: "Parcel") -> None:
+        self.conn.execute(
+            """INSERT INTO parcels(tax_map_number, owner_raw, site_street, site_city,
+                                   site_state, site_zip)
+                 VALUES(?,?,?,?,?,?)
+               ON CONFLICT(tax_map_number) DO UPDATE SET
+                 owner_raw=excluded.owner_raw,
+                 site_street=excluded.site_street,
+                 site_city=excluded.site_city,
+                 site_state=excluded.site_state,
+                 site_zip=excluded.site_zip,
+                 resolved_at=CURRENT_TIMESTAMP""",
+            (parcel.tax_map_number, parcel.owner_raw, parcel.site_street,
+             parcel.site_city, parcel.site_state, parcel.site_zip),
+        )
+
+    def get_parcel(self, tax_map_number: str) -> "Parcel | None":
+        row = self.conn.execute(
+            """SELECT tax_map_number, owner_raw, site_street, site_city, site_state, site_zip
+                 FROM parcels WHERE tax_map_number=?""",
+            (tax_map_number,),
+        ).fetchone()
+        if not row:
+            return None
+        return Parcel(
+            tax_map_number=row[0], owner_raw=row[1], site_street=row[2],
+            site_city=row[3], site_state=row[4], site_zip=row[5],
+        )
+
+    def cache_skip_trace(self, person_key: str, owner_name: str,
+                         street: str | None, city: str | None,
+                         state: str | None, zip_: str | None,
+                         mobiles: list[str]) -> None:
+        self.conn.execute(
+            """INSERT INTO skip_traces(person_key, owner_name, site_street, site_city,
+                                       site_state, site_zip, mobiles_json)
+                 VALUES(?,?,?,?,?,?,?)
+               ON CONFLICT(person_key) DO UPDATE SET
+                 mobiles_json=excluded.mobiles_json,
+                 traced_at=CURRENT_TIMESTAMP""",
+            (person_key, owner_name, street, city, state, zip_, json.dumps(mobiles)),
+        )
+
+    def get_skip_trace(self, person_key: str) -> list[str] | None:
+        row = self.conn.execute(
+            "SELECT mobiles_json FROM skip_traces WHERE person_key=?",
+            (person_key,),
+        ).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def record_sheet_row(self, case_number: str, person_key: str) -> bool:
+        try:
+            self.conn.execute(
+                "INSERT INTO sheet_rows(case_number, person_key) VALUES(?, ?)",
+                (case_number, person_key),
+            )
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def log_error(self, stage: str, case_number: str | None,
+                  message: str, traceback: str) -> None:
+        self.conn.execute(
+            """INSERT INTO errors(stage, case_number, message, traceback)
+                 VALUES(?,?,?,?)""",
+            (stage, case_number, message, traceback),
+        )
+
+    def set_state(self, key: str, value: str) -> None:
+        self.conn.execute(
+            """INSERT INTO state(key, value) VALUES(?, ?)
+               ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+            (key, value),
+        )
+
+    def get_state(self, key: str) -> str | None:
+        row = self.conn.execute(
+            "SELECT value FROM state WHERE key=?", (key,),
+        ).fetchone()
+        return row[0] if row else None
