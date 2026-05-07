@@ -1,0 +1,19 @@
+[Unit]
+Description=Berkeley County foreclosure scraper
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=botuser
+WorkingDirectory=/home/botuser/foreclosure-bot
+EnvironmentFile=/home/botuser/foreclosure-bot/.env
+ExecStart=/home/botuser/foreclosure-bot/.venv/bin/python -m foreclosure_bot
+RuntimeMaxSec=50m
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/botuser/foreclosure-bot/data /var/backups/foreclosure-bot
+PrivateTmp=true
