@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+from .models import Case
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS cases (
@@ -70,3 +71,38 @@ class Store:
 
     def close(self) -> None:
         self.conn.close()
+
+    def seen_case_numbers(self) -> set[str]:
+        rows = self.conn.execute("SELECT case_number FROM cases").fetchall()
+        return {r[0] for r in rows}
+
+    def upsert_case(self, case: "Case", status: str) -> None:
+        self.conn.execute(
+            """INSERT INTO cases(case_number, date_filed, tax_map_number, status)
+                 VALUES(?, ?, ?, ?)
+               ON CONFLICT(case_number) DO UPDATE SET
+                 last_seen_at = CURRENT_TIMESTAMP,
+                 tax_map_number = COALESCE(cases.tax_map_number, excluded.tax_map_number)""",
+            (case.case_number, case.date_filed.isoformat(), case.tax_map_number, status),
+        )
+
+    def set_case_status(self, case_number: str, status: str) -> None:
+        self.conn.execute(
+            "UPDATE cases SET status=?, last_seen_at=CURRENT_TIMESTAMP WHERE case_number=?",
+            (status, case_number),
+        )
+
+    def load_incomplete_cases(self) -> list["Case"]:
+        rows = self.conn.execute(
+            """SELECT case_number, date_filed, tax_map_number FROM cases
+               WHERE status IN ('new','gis_done','error')"""
+        ).fetchall()
+        from datetime import date as _date
+        return [
+            Case(
+                case_number=r[0],
+                date_filed=_date.fromisoformat(r[1]),
+                tax_map_number=r[2],
+            )
+            for r in rows
+        ]
