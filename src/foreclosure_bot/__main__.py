@@ -40,7 +40,7 @@ async def _run() -> int:
         )
         pipeline = Pipeline(
             store=store, scraper=scraper, gis=gis, tracerfy=tracerfy,
-            sheets=sheets,
+            sheets=sheets, alerts=alerts,
             lookback_days=settings.scrape_lookback_days,
             backfill_days=settings.backfill_days,
             backfill_max_lookups=settings.backfill_max_lookups,

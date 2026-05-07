@@ -1,10 +1,14 @@
 from datetime import UTC, date, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from .dedupe import Store
 from .gis_lookup import GisClient, parse_owners
 from .models import Case, Person, SheetRow
 from .sheet_writer import SheetWriter
 from .tracerfy import TracerfyClient
+
+if TYPE_CHECKING:
+    from .alerts import AlertSender
 
 
 class Pipeline:
@@ -19,6 +23,7 @@ class Pipeline:
         lookback_days: int,
         backfill_days: int,
         backfill_max_lookups: int,
+        alerts: "AlertSender | None" = None,
     ):
         self.store = store
         self.scraper = scraper
@@ -28,9 +33,13 @@ class Pipeline:
         self.lookback_days = lookback_days
         self.backfill_days = backfill_days
         self.backfill_max_lookups = backfill_max_lookups
+        self.alerts = alerts
         self._tracerfy_calls_this_run = 0
+        self._sheet_failures_this_run = 0
 
     async def run(self) -> None:
+        self._sheet_failures_this_run = 0
+
         # 1. Resume incomplete cases
         working: dict[str, Case] = {
             c.case_number: c for c in self.store.load_incomplete_cases()
@@ -61,16 +70,24 @@ class Pipeline:
                 )
                 self.store.set_case_status(case.case_number, "error")
 
-        # Set backfill complete when no incomplete cases remain
+        # Set backfill complete when no new/gis_done cases remain (errors don't block)
         if is_backfill:
             remaining = self.store.conn.execute(
-                "SELECT COUNT(*) FROM cases WHERE status IN ('new','gis_done','error')"
+                "SELECT COUNT(*) FROM cases WHERE status IN ('new','gis_done')"
             ).fetchone()[0]
             if remaining == 0:
                 self.store.set_state(
                     "backfill_completed_at",
                     datetime.now(UTC).isoformat(),
                 )
+
+        # Alert on sheet-write failures (AlertSender has per-stage hourly throttling)
+        if self._sheet_failures_this_run > 0 and self.alerts is not None:
+            self.alerts.notify(
+                stage="sheet",
+                message=f"{self._sheet_failures_this_run} sheet write(s) failed this run",
+                traceback="",
+            )
 
     async def _process_case(self, case: Case, is_backfill: bool) -> None:
         if case.tax_map_number is None:
@@ -124,7 +141,12 @@ class Pipeline:
                     mobiles=mobiles,
                 )
 
-            if not self.store.record_sheet_row(case.case_number, person_key):
+            # Check existence without inserting (insert only on success below)
+            already_written = self.store.conn.execute(
+                "SELECT 1 FROM sheet_rows WHERE case_number=? AND person_key=?",
+                (case.case_number, person_key),
+            ).fetchone() is not None
+            if already_written:
                 continue
 
             row = SheetRow(
@@ -137,8 +159,11 @@ class Pipeline:
                 mobile_3=mobiles[2] if len(mobiles) > 2 else None,
             )
             ok = await self.sheets.append(row)
-            if not ok:
+            if ok:
+                self.store.record_sheet_row(case.case_number, person_key)
+            else:
                 all_written = False
+                self._sheet_failures_this_run += 1
                 self.store.log_error(
                     stage="sheet", case_number=case.case_number,
                     message="webhook returned non-ok", traceback="",

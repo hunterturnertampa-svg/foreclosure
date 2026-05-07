@@ -133,6 +133,70 @@ async def test_pipeline_writes_row_with_no_mobiles(store):
 
 
 @pytest.mark.asyncio
+async def test_pipeline_retries_failed_sheet_write_on_next_run(store):
+    scraper = MagicMock()
+    async def fake_iter(start, end, seen):
+        yield Case(case_number="C1", date_filed=date(2024, 5, 1), tax_map_number="T1")
+    scraper.discover_cases = fake_iter
+
+    gis = MagicMock()
+    gis.query = AsyncMock(return_value=Parcel(
+        tax_map_number="T1", owner_raw="SMITH JOHN",
+        site_street="1 Main", site_city="C", site_state="SC", site_zip="29461",
+    ))
+    tracerfy = MagicMock()
+    tracerfy.skip_trace = AsyncMock(return_value=["8435551111"])
+
+    sheets = MagicMock()
+    sheets.append = AsyncMock(side_effect=[False, True])  # fail then succeed
+
+    p = Pipeline(
+        store=store, scraper=scraper, gis=gis, tracerfy=tracerfy,
+        sheets=sheets, lookback_days=7, backfill_days=30,
+        backfill_max_lookups=200,
+    )
+    await p.run()  # first run — sheet POST fails
+    rows1 = store.conn.execute("SELECT COUNT(*) FROM sheet_rows").fetchone()[0]
+    assert rows1 == 0  # nothing recorded after failed POST
+
+    await p.run()  # second run — should retry and succeed
+    rows2 = store.conn.execute("SELECT COUNT(*) FROM sheet_rows").fetchone()[0]
+    assert rows2 == 1
+    assert sheets.append.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_pipeline_emits_alert_on_sheet_failures(store):
+    scraper = MagicMock()
+    async def fake_iter(start, end, seen):
+        yield Case(case_number="C1", date_filed=date(2024, 5, 1), tax_map_number="T1")
+    scraper.discover_cases = fake_iter
+
+    gis = MagicMock()
+    gis.query = AsyncMock(return_value=Parcel(
+        tax_map_number="T1", owner_raw="SMITH JOHN",
+        site_street="1 Main", site_city="C", site_state="SC", site_zip="29461",
+    ))
+    tracerfy = MagicMock()
+    tracerfy.skip_trace = AsyncMock(return_value=[])
+
+    sheets = MagicMock()
+    sheets.append = AsyncMock(return_value=False)
+
+    alerts = MagicMock()
+
+    p = Pipeline(
+        store=store, scraper=scraper, gis=gis, tracerfy=tracerfy,
+        sheets=sheets, lookback_days=7, backfill_days=30,
+        backfill_max_lookups=200, alerts=alerts,
+    )
+    await p.run()
+
+    alerts.notify.assert_called_once()
+    assert alerts.notify.call_args.kwargs["stage"] == "sheet"
+
+
+@pytest.mark.asyncio
 async def test_pipeline_backfill_cap_stops_skip_trace(store):
     scraper = MagicMock()
     async def fake_iter(start, end, seen):
