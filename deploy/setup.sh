@@ -4,10 +4,19 @@
 set -euo pipefail
 
 apt-get update
-apt-get install -y python3.12 python3.12-venv git curl ca-certificates \
+apt-get install -y python3.12 python3.12-venv git curl wget ca-certificates \
     libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxkbcommon0 libxcomposite1 \
     libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2t64 \
-    sqlite3
+    xvfb sqlite3
+
+# Real Google Chrome — required to bypass publicindex.sccourts.org bot detection.
+# Patchright + headless-shell still gets HTTP 406 on AJAX postbacks; only headed
+# real Chrome under Xvfb makes it through.
+if ! command -v google-chrome >/dev/null 2>&1; then
+    wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+    apt-get install -y /tmp/chrome.deb
+    rm -f /tmp/chrome.deb
+fi
 
 id -u botuser >/dev/null 2>&1 || useradd -m -s /bin/bash botuser
 
@@ -18,7 +27,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="\$HOME/.cargo/bin:\$HOME/.local/bin:\$PATH"
 uv venv
 uv pip install -e ".[dev]"
-uv run playwright install chromium
+uv run patchright install chromium
 EOF
 
 mkdir -p /var/backups/foreclosure-bot
