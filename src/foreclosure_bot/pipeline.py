@@ -151,7 +151,7 @@ class Pipeline:
 
             row = SheetRow(
                 case_number=case.case_number, date_filed=case.date_filed,
-                owner_name=person.display_name(),
+                first_name=person.first, last_name=person.last,
                 street=parcel.site_street or "", city=parcel.site_city or "",
                 state=parcel.site_state or "SC", zip=parcel.site_zip or "",
                 mobile_1=mobiles[0] if len(mobiles) > 0 else None,

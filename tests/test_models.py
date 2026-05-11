@@ -33,9 +33,12 @@ def test_person_key_handles_missing_middle_and_zip():
 def test_sheet_row_round_trip():
     r = SheetRow(
         case_number="X", date_filed=date(2024, 1, 1),
-        owner_name="John Smith", street="1 St", city="C", state="SC", zip="29461",
+        first_name="John", last_name="Smith",
+        street="1 St", city="C", state="SC", zip="29461",
         mobile_1="8435551111", mobile_2=None, mobile_3=None,
     )
     d = r.model_dump(mode="json")
+    assert d["first_name"] == "John"
+    assert d["last_name"] == "Smith"
     assert d["mobile_2"] is None
     assert d["date_filed"] == "2024-01-01"

@@ -11,7 +11,8 @@ from foreclosure_bot.sheet_writer import SheetWriter
 def make_row():
     return SheetRow(
         case_number="2024CP0801234", date_filed=date(2024, 5, 1),
-        owner_name="John Smith", street="1 Main", city="C", state="SC", zip="29461",
+        first_name="John", last_name="Smith",
+        street="1 Main", city="C", state="SC", zip="29461",
         mobile_1="8435551111",
     )
 

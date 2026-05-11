@@ -41,7 +41,8 @@ class SkipTraceResult(BaseModel):
 class SheetRow(BaseModel):
     case_number: str
     date_filed: date
-    owner_name: str
+    first_name: str
+    last_name: str
     street: str
     city: str
     state: str
