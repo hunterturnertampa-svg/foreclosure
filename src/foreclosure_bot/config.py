@@ -1,6 +1,28 @@
 from pathlib import Path
 
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class CountyConfig(BaseModel):
+    """Per-county scraping + GIS configuration.
+
+    Two GIS address shapes are supported:
+    - Separate columns: set ``city_field`` and ``zip_field``.
+    - Combined ``CITY_STATE_ZIP`` field (e.g. "BOWMAN SC 29018"): set ``csz_field``.
+    Exactly one shape should be configured; if both, csz_field wins.
+    """
+
+    slug: str  # e.g. "Berkeley", "Dorchester" — used in the court URL path
+    query_url: str
+    pin_field: str
+    owner_field: str
+    address_field: str
+    address_fallback_field: str | None = None
+    city_field: str | None = None
+    zip_field: str | None = None
+    csz_field: str | None = None
+    pin_strip_dashes: bool = True
 
 
 class Settings(BaseSettings):
@@ -24,12 +46,44 @@ class Settings(BaseSettings):
         "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     )
 
-    arcgis_parcel_query_url: str
-    arcgis_parcel_pin_field: str = "PIN"
-    arcgis_parcel_owner_field: str = "OWNER"
-    arcgis_parcel_address_field: str = "SITE_ADDRESS"
-    arcgis_parcel_address_fallback_field: str | None = None
-    arcgis_parcel_city_field: str = "SITE_CITY"
-    arcgis_parcel_zip_field: str = "SITE_ZIP"
+    # Comma-separated list, processed in order each run.
+    counties: str = "Berkeley"
+
+    # Per-county vars are loaded dynamically below by ``county_configs()``.
+    # We declare them lazily to avoid pydantic enumerating every possible slug.
 
     sqlite_path: Path = Path("data/bot.sqlite")
+
+    def county_configs(self) -> list[CountyConfig]:
+        import os
+        configs: list[CountyConfig] = []
+        for raw in self.counties.split(","):
+            slug = raw.strip()
+            if not slug:
+                continue
+            prefix = slug.upper() + "_ARCGIS_"
+
+            def get(key: str, default: str | None = None) -> str | None:
+                val = os.environ.get(prefix + key, default)
+                return val if val else default
+
+            query_url = get("QUERY_URL")
+            if not query_url:
+                raise ValueError(
+                    f"{slug}: missing required env var {prefix}QUERY_URL"
+                )
+            configs.append(CountyConfig(
+                slug=slug,
+                query_url=query_url,
+                pin_field=get("PIN_FIELD", "PIN"),
+                owner_field=get("OWNER_FIELD", "OWNER"),
+                address_field=get("ADDRESS_FIELD", "SITE_ADDRESS"),
+                address_fallback_field=get("ADDRESS_FALLBACK_FIELD"),
+                city_field=get("CITY_FIELD"),
+                zip_field=get("ZIP_FIELD"),
+                csz_field=get("CSZ_FIELD"),
+                pin_strip_dashes=(get("PIN_STRIP_DASHES", "true") or "true").lower() == "true",
+            ))
+        if not configs:
+            raise ValueError("at least one county must be configured")
+        return configs

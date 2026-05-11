@@ -59,14 +59,37 @@ class GisFieldMap:
     pin: str
     owner: str
     address: str
-    city: str
-    zip: str
     address_fallback: str | None = None
+    city: str | None = None  # mutually exclusive with csz
+    zip: str | None = None
+    csz: str | None = None   # combined "CITY STATE ZIP" field (Dorchester-style)
+    pin_strip_dashes: bool = True
 
 
-def normalize_tms(raw: str) -> str:
-    """Strip dashes, spaces, and dots — Berkeley's O_TMS field stores digits only."""
-    return re.sub(r"[^A-Za-z0-9]", "", raw or "")
+def normalize_tms(raw: str, strip_dashes: bool = True) -> str:
+    """Berkeley stores parcels with digits only ("0120000058"); Dorchester
+    keeps the dashed format ("003-00-00-037"). The court site shows the
+    dashed format in both cases, so we strip when the GIS column is digits-only.
+    """
+    s = raw or ""
+    if strip_dashes:
+        return re.sub(r"[^A-Za-z0-9]", "", s)
+    return s.strip()
+
+
+_CSZ_RE = re.compile(r"^\s*(.+?)\s+([A-Z]{2})\s+(\d{5,9})\s*$")
+
+
+def parse_csz(raw: str | None) -> tuple[str | None, str | None, str | None]:
+    """Parse 'BOWMAN SC 29018' or 'MONCKS CORNER SC 294619462' → (city, state, zip5)."""
+    if not raw:
+        return None, None, None
+    m = _CSZ_RE.match(raw.strip())
+    if not m:
+        return None, None, None
+    city, state, zip_raw = m.groups()
+    zip5 = zip_raw[:5] if zip_raw else None
+    return city.strip(), state, zip5
 
 
 class GisClient:
@@ -76,12 +99,13 @@ class GisClient:
         self.timeout = timeout
 
     async def query(self, tax_map_number: str) -> Parcel | None:
-        normalized = normalize_tms(tax_map_number)
+        normalized = normalize_tms(tax_map_number, self.fields.pin_strip_dashes)
         safe_pin = normalized.replace("'", "''")
-        out_fields = [self.fields.owner, self.fields.address,
-                      self.fields.city, self.fields.zip]
-        if self.fields.address_fallback:
-            out_fields.append(self.fields.address_fallback)
+        out_fields = [self.fields.owner, self.fields.address]
+        for extra in (self.fields.address_fallback, self.fields.city,
+                      self.fields.zip, self.fields.csz):
+            if extra:
+                out_fields.append(extra)
         params = {
             "where": f"{self.fields.pin}='{safe_pin}'",
             "outFields": ",".join(out_fields),
@@ -96,16 +120,23 @@ class GisClient:
         if not features:
             return None
         attrs = features[0].get("attributes", {})
-        street = attrs.get(self.fields.address) or ""
-        if not street.strip() and self.fields.address_fallback:
+
+        street = (attrs.get(self.fields.address) or "").strip()
+        if not street and self.fields.address_fallback:
             street = (attrs.get(self.fields.address_fallback) or "").strip()
-        zip_raw = str(attrs.get(self.fields.zip) or "")
-        zip5 = zip_raw.split("-")[0].strip()
+
+        if self.fields.csz:
+            city, _state, zip5 = parse_csz(attrs.get(self.fields.csz))
+        else:
+            city = attrs.get(self.fields.city) if self.fields.city else None
+            zip_raw = str(attrs.get(self.fields.zip) or "") if self.fields.zip else ""
+            zip5 = zip_raw.split("-")[0].strip() or None
+
         return Parcel(
             tax_map_number=tax_map_number,
             owner_raw=attrs.get(self.fields.owner),
-            site_street=(street or "").strip() or None,
-            site_city=attrs.get(self.fields.city),
+            site_street=street or None,
+            site_city=city,
             site_state="SC",
             site_zip=zip5 or None,
         )

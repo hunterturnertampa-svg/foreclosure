@@ -1,8 +1,6 @@
 import asyncio
 from unittest.mock import patch
 
-import pytest
-
 from foreclosure_bot.__main__ import _run
 
 
@@ -13,7 +11,8 @@ def test_main_runs_without_unhandled_exception(monkeypatch, tmp_path):
     monkeypatch.setenv("ALERT_EMAIL_TO", "t@x.com")
     monkeypatch.setenv("SMTP_USER", "u@x.com")
     monkeypatch.setenv("SMTP_PASS", "p")
-    monkeypatch.setenv("ARCGIS_PARCEL_QUERY_URL", "https://gis.example.com/query")
+    monkeypatch.setenv("COUNTIES", "Berkeley")
+    monkeypatch.setenv("BERKELEY_ARCGIS_QUERY_URL", "https://gis.example.com/query")
     monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "bot.sqlite"))
 
     async def empty_iter(start, end, seen):

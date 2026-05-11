@@ -10,7 +10,7 @@ from patchright.async_api import Page, async_playwright
 from .models import Case
 
 
-COURT_URL = "https://publicindex.sccourts.org/Berkeley/PublicIndex/PISearch.aspx"
+COURT_URL_TEMPLATE = "https://publicindex.sccourts.org/{county}/PublicIndex/PISearch.aspx"
 
 # Form field IDs (verified live against publicindex.sccourts.org)
 SEL_CASE_TYPE = "#ContentPlaceHolder1_DropDownListCaseTypes"
@@ -105,9 +105,11 @@ def parse_case_detail(html: str) -> str | None:
 
 
 class CourtScraper:
-    def __init__(self, user_agent: str):
+    def __init__(self, user_agent: str, county: str = "Berkeley"):
         # Kept for compatibility; real Chrome (channel='chrome') sets its own UA.
         self.user_agent = user_agent
+        self.county = county
+        self.court_url = COURT_URL_TEMPLATE.format(county=county)
 
     async def discover_cases(
         self,
@@ -120,7 +122,7 @@ class CourtScraper:
             context = await browser.new_context()
             page = await context.new_page()
             try:
-                await page.goto(COURT_URL, wait_until="domcontentloaded")
+                await page.goto(self.court_url, wait_until="domcontentloaded")
                 await asyncio.sleep(3)
                 if "Public Index Search" not in (await page.title()):
                     raise CourtScraperError(
