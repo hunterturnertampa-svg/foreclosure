@@ -1,7 +1,28 @@
+import os
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _load_dotenv_into_environ() -> None:
+    """pydantic-settings reads .env into the Settings instance but not into
+    os.environ, so dynamically-prefixed vars like BERKELEY_ARCGIS_* would be
+    invisible to our county_configs() lookups. Load them ourselves."""
+    env_path = Path(".env")
+    if not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip()
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_dotenv_into_environ()
 
 
 class CountyConfig(BaseModel):
@@ -55,7 +76,6 @@ class Settings(BaseSettings):
     sqlite_path: Path = Path("data/bot.sqlite")
 
     def county_configs(self) -> list[CountyConfig]:
-        import os
         configs: list[CountyConfig] = []
         for raw in self.counties.split(","):
             slug = raw.strip()
