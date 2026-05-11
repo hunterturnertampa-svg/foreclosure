@@ -57,6 +57,7 @@ async def _run() -> int:
                     lookback_days=settings.scrape_lookback_days,
                     backfill_days=settings.backfill_days,
                     backfill_max_lookups=settings.backfill_max_lookups,
+                    agency_code=county.agency_code,
                 )
                 await pipeline.run()
             except Exception as exc:

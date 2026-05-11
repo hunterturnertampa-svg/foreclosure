@@ -25,6 +25,23 @@ def _load_dotenv_into_environ() -> None:
 _load_dotenv_into_environ()
 
 
+# SC court agency codes appear in case numbers as YYYYCP<code><sequence>.
+# Authoritative list: https://www.sccourts.org/clerksDirectory/
+_AGENCY_CODES = {
+    "Berkeley": "08",
+    "Charleston": "10",
+    "Dorchester": "18",
+}
+
+
+def _default_agency_code(slug: str) -> str:
+    if slug not in _AGENCY_CODES:
+        raise ValueError(
+            f"{slug}: no built-in agency code; set {slug.upper()}_ARCGIS_AGENCY_CODE"
+        )
+    return _AGENCY_CODES[slug]
+
+
 class CountyConfig(BaseModel):
     """Per-county scraping + GIS configuration.
 
@@ -47,6 +64,10 @@ class CountyConfig(BaseModel):
     # Optional per-county HTTP proxy (residential). Used for GIS only; the court
     # site is the same statewide host for all SC counties and never proxied.
     http_proxy: str | None = None
+    # 2-digit SC court agency code embedded in case numbers (e.g. "08" Berkeley,
+    # "10" Charleston, "18" Dorchester). Used to filter which incomplete cases
+    # this county's pipeline retries.
+    agency_code: str
 
 
 class Settings(BaseSettings):
@@ -107,6 +128,7 @@ class Settings(BaseSettings):
                 csz_field=get("CSZ_FIELD"),
                 pin_strip_dashes=(get("PIN_STRIP_DASHES", "true") or "true").lower() == "true",
                 http_proxy=get("HTTP_PROXY"),
+                agency_code=get("AGENCY_CODE") or _default_agency_code(slug),
             ))
         if not configs:
             raise ValueError("at least one county must be configured")

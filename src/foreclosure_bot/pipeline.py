@@ -24,6 +24,7 @@ class Pipeline:
         backfill_days: int,
         backfill_max_lookups: int,
         alerts: "AlertSender | None" = None,
+        agency_code: str | None = None,
     ):
         self.store = store
         self.scraper = scraper
@@ -34,15 +35,17 @@ class Pipeline:
         self.backfill_days = backfill_days
         self.backfill_max_lookups = backfill_max_lookups
         self.alerts = alerts
+        self.agency_code = agency_code
         self._tracerfy_calls_this_run = 0
         self._sheet_failures_this_run = 0
 
     async def run(self) -> None:
         self._sheet_failures_this_run = 0
 
-        # 1. Resume incomplete cases
+        # 1. Resume incomplete cases for this county only
         working: dict[str, Case] = {
-            c.case_number: c for c in self.store.load_incomplete_cases()
+            c.case_number: c
+            for c in self.store.load_incomplete_cases(agency_code=self.agency_code)
         }
 
         # 2. Discover new cases

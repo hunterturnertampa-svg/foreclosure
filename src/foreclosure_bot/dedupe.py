@@ -94,11 +94,27 @@ class Store:
             (status, case_number),
         )
 
-    def load_incomplete_cases(self) -> list["Case"]:
-        rows = self.conn.execute(
-            """SELECT case_number, date_filed, tax_map_number FROM cases
-               WHERE status IN ('new','gis_done','error')"""
-        ).fetchall()
+    def load_incomplete_cases(self, agency_code: str | None = None) -> list["Case"]:
+        """Return cases with status in (new, gis_done, error).
+
+        SC case numbers follow ``YYYYCP<agency_code><sequence>`` (e.g.
+        ``2026CP0801234``). When ``agency_code`` is supplied, only cases for
+        that county are returned — this prevents a per-county Pipeline run from
+        retrying cases that belong to a different county (which would always
+        fail at the GIS step because the field schemas differ).
+        """
+        if agency_code is None:
+            rows = self.conn.execute(
+                """SELECT case_number, date_filed, tax_map_number FROM cases
+                   WHERE status IN ('new','gis_done','error')"""
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                """SELECT case_number, date_filed, tax_map_number FROM cases
+                   WHERE status IN ('new','gis_done','error')
+                     AND substr(case_number, 7, 2) = ?""",
+                (agency_code,),
+            ).fetchall()
         from datetime import date as _date
         return [
             Case(
