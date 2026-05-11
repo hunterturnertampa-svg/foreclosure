@@ -38,12 +38,15 @@ class CountyConfig(BaseModel):
     query_url: str
     pin_field: str
     owner_field: str
-    address_field: str
+    address_field: str  # comma-separated for compound addresses (e.g. ST_NO,ST_NAME,ST_TYPE)
     address_fallback_field: str | None = None
     city_field: str | None = None
     zip_field: str | None = None
     csz_field: str | None = None
     pin_strip_dashes: bool = True
+    # Optional per-county HTTP proxy (residential). Used for GIS only; the court
+    # site is the same statewide host for all SC counties and never proxied.
+    http_proxy: str | None = None
 
 
 class Settings(BaseSettings):
@@ -103,6 +106,7 @@ class Settings(BaseSettings):
                 zip_field=get("ZIP_FIELD"),
                 csz_field=get("CSZ_FIELD"),
                 pin_strip_dashes=(get("PIN_STRIP_DASHES", "true") or "true").lower() == "true",
+                http_proxy=get("HTTP_PROXY"),
             ))
         if not configs:
             raise ValueError("at least one county must be configured")

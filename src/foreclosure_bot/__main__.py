@@ -25,6 +25,7 @@ def _make_gis(county: CountyConfig) -> GisClient:
             csz=county.csz_field,
             pin_strip_dashes=county.pin_strip_dashes,
         ),
+        http_proxy=county.http_proxy,
     )
 
 

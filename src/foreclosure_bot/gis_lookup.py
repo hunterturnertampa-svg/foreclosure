@@ -92,27 +92,63 @@ def parse_csz(raw: str | None) -> tuple[str | None, str | None, str | None]:
     return city.strip(), state, zip5
 
 
+def _strip(v: object) -> str:
+    """Some ArcGIS feature services right-pad strings to the column width.
+    Coerce to str and strip both ends so values like 'SC  ' don't leak."""
+    if v is None:
+        return ""
+    return str(v).strip()
+
+
+def _compound_value(attrs: dict, field_spec: str) -> str:
+    """If field_spec is 'A,B,C', return space-joined non-empty A, B, C values.
+    Otherwise return the single field's value."""
+    parts = [p.strip() for p in field_spec.split(",") if p.strip()]
+    if len(parts) == 1:
+        return _strip(attrs.get(parts[0]))
+    return " ".join(_strip(attrs.get(p)) for p in parts if _strip(attrs.get(p)))
+
+
 class GisClient:
-    def __init__(self, query_url: str, fields: GisFieldMap, timeout: float = 30.0):
+    def __init__(
+        self, query_url: str, fields: GisFieldMap,
+        timeout: float = 30.0, http_proxy: str | None = None,
+    ):
         self.query_url = query_url
         self.fields = fields
         self.timeout = timeout
+        self.http_proxy = http_proxy
+
+    def _out_fields(self) -> list[str]:
+        out: list[str] = []
+        # address_field may be comma-separated for compound addresses.
+        out.extend(p.strip() for p in self.fields.address.split(",") if p.strip())
+        out.append(self.fields.owner)
+        for extra in (self.fields.address_fallback, self.fields.city,
+                      self.fields.zip, self.fields.csz):
+            if extra:
+                out.append(extra)
+        # Deduplicate while preserving order.
+        seen: set[str] = set()
+        return [f for f in out if not (f in seen or seen.add(f))]
 
     async def query(self, tax_map_number: str) -> Parcel | None:
         normalized = normalize_tms(tax_map_number, self.fields.pin_strip_dashes)
         safe_pin = normalized.replace("'", "''")
-        out_fields = [self.fields.owner, self.fields.address]
-        for extra in (self.fields.address_fallback, self.fields.city,
-                      self.fields.zip, self.fields.csz):
-            if extra:
-                out_fields.append(extra)
         params = {
             "where": f"{self.fields.pin}='{safe_pin}'",
-            "outFields": ",".join(out_fields),
+            "outFields": ",".join(self._out_fields()),
             "returnGeometry": "false",
             "f": "json",
         }
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        client_kwargs = {"timeout": self.timeout, "verify": True}
+        if self.http_proxy:
+            client_kwargs["proxy"] = self.http_proxy
+            # Some county GIS servers behind residential proxies serve invalid
+            # SSL chains via the proxy's CONNECT tunnel. Skip verify only when
+            # routed through a proxy.
+            client_kwargs["verify"] = False
+        async with httpx.AsyncClient(**client_kwargs) as client:
             resp = await client.get(self.query_url, params=params)
             resp.raise_for_status()
             data = resp.json()
@@ -121,22 +157,22 @@ class GisClient:
             return None
         attrs = features[0].get("attributes", {})
 
-        street = (attrs.get(self.fields.address) or "").strip()
+        street = _compound_value(attrs, self.fields.address)
         if not street and self.fields.address_fallback:
-            street = (attrs.get(self.fields.address_fallback) or "").strip()
+            street = _compound_value(attrs, self.fields.address_fallback)
 
         if self.fields.csz:
             city, _state, zip5 = parse_csz(attrs.get(self.fields.csz))
         else:
-            city = attrs.get(self.fields.city) if self.fields.city else None
-            zip_raw = str(attrs.get(self.fields.zip) or "") if self.fields.zip else ""
+            city = _strip(attrs.get(self.fields.city)) if self.fields.city else None
+            zip_raw = _strip(attrs.get(self.fields.zip)) if self.fields.zip else ""
             zip5 = zip_raw.split("-")[0].strip() or None
 
         return Parcel(
             tax_map_number=tax_map_number,
-            owner_raw=attrs.get(self.fields.owner),
+            owner_raw=_strip(attrs.get(self.fields.owner)) or None,
             site_street=street or None,
-            site_city=city,
+            site_city=city or None,
             site_state="SC",
             site_zip=zip5 or None,
         )
